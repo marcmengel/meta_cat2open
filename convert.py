@@ -1,11 +1,6 @@
 from metacat.webapi import MetaCatClient
-import metadata.sdk.entities
-from metadata.sdk import configure as openmeta_configure
-from metadata.generated.schema.api.data.createFile import CreateFileRequest
-from metadata.generated.schema.api.data.createTable import CreateTableRequest
-from metadata.generated.schema.api.data.createMlModel import CreateMlModelRequest
-from metadata.generated.schema.api.data.createContainer import CreateContainerRequest
 import conversion_dicts import meta2open_dict
+import requests
 
 
 def field_convert(entry):
@@ -20,6 +15,16 @@ def field_convert(entry):
     if "ParentFQN" in res:
         res["ParentFQN"] = [ x["name"] for x in res["ParentFQN"] ]
 
+def post_create(s, cf, type, entity_dict)
+    amsc_url = cf.get("general","amsc_url") 
+    resp = s.post(f"{amsc_url}/catalog/{entity_dict['type']}", entity_dict)
+    return r.json()
+
+def put_update(s, cf, type, entity_dict)
+    amsc_url = cf.get("general","amsc_url") 
+    resp = s.put(f"{amsc_url}/catalog/{entity_dict['fqn']}", entity_dict)
+    return r.json()
+
 def convert(cfg):
     fq = cf.get("general", "file_query")
     dq = cf.get("general", "dataset_query")
@@ -27,38 +32,45 @@ def convert(cfg):
     mcuser = cf.get("metacat", "user")`
 
     mcc = MetaCatClient(mcu)
-    openmeta_configure( **dict(cp.items('openmetadata')))
+    omc = requests.Session()
+    omc.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
 
     mcc.login_token(cf.get("general", mcuser)
-    domain = ",".split(cf.get("openmeta", "add2domains"))
     
+    dataset_list = mcc.query(dq, with_metadata=true, with_provenance=true)
+    for d_entry in dataset_list:
+        amsc_data = field_convert(d_entry)
+
+        amsc_data["domain"] = domain
+
+        if not amsc_data["fqn"]:
+            res_data = post_create(s, cf, amsc_data)
+            mcc.update_dataset(
+                namespace=d_entry["namespace"],
+                name=d_entry["name"],
+                metadata={"AmSC.common.fqn",res_data["fqn"]}
+            )
+        else:
+            res_data = put_update(s, cf, amsc_data)
+        
+
     file_list = mcc.query(fq)
     for file_info in file_list:
 
         file_entry = mcc.get_file(name = file_info["name"], namespace = file_info["namespace"], with_datasets=True)
-        amsc_type = file_entry["metadata"]["AmSC.Type"]
         amsc_data = field_convert(file_entry)
 
         amsc_data["domain"] = domain
 
-        if amsc_type == "artifact":
-            created = Files.create(CreateFileRequest( *amsc_data ))
-        if amsc_type == "mlmodel":
-            created = mlModels.create(CreateMlModelRequest( *amsc_data ))
-        if amsc_type == "table":
-            created = Tables.create(CreateTableRequest( *amsc_data ))
-        if amsc_type == "reference":
-             pass # We dont know how to make one of these yet...
+        if not amsc_data["fqn"]:
+            # not migrated yet
+            res_data = post_create(s, cf, amsc_data)
+            mcc.update_file(
+                namespace=d_entry["namespace"],
+                name=d_entry["name"],
+                metadata={"AmSC.common.fqn",res_data["fqn"]}
+            )
+        else:
+            res_data = put_update(s, cf, amsc_data)
+
         
-    dataset_list = mcc.query(dq, with_metadata=true, with_provenance=true)
-    for dataset_entry in dataset_list:
-        amsc_type = dataset_entry["metadata"]["AmSC.Type"]
-        amsc_data = field_convert(file_entry)
-
-        amsc_data["domain"] = domain
-
-        if amsc_type == "scientificWork":
-            created = Containers.create(CreateContainerRequest( *amsc_data ))
-        if amsc_type == "artifactCollection":
-            created = Containers.create(CreateContainerRequest( *amsc_data ))
-    
