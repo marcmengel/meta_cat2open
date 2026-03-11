@@ -14,6 +14,9 @@ def field_convert(entry):
     for k in entry["metadata"]:
         if k in meta2open_dict:
              res[meta2open_dict[k]] = entry["metadata"][k]
+    # special conversion cases:
+    if "ParentFQN" in res:
+        res["ParentFQN"] = [ x["name"] for x in res["ParentFQN"] ]
 
 def convert(cfg):
     fq = cf.get("general", "file_query")
@@ -22,11 +25,17 @@ def convert(cfg):
     mcuser = cf.get("metacat", "user")`
     mcc = MetaCatClient(mcu)
     mcc.login_token(cf.get("general", mcuser)
+    domain = ",".split(cf.get("openmeta", "add2domains"))
     
-    file_list = mcc.query(fq, with_metadata=true, with_provenance=true)
-    for file_entry in file_list:
+    file_list = mcc.query(fq)
+    for file_info in file_list:
+
+        file_entry = mcc.get_file(name = file_info["name"], namespace = file_info["namespace"], with_datasets=True)
         amsc_type = file_entry["metadata"]["AmSC.Type"]
         amsc_data = field_convert(file_entry)
+
+        amsc_data["domain"] = domain
+
         if amsc_type == "artifact":
             created = Files.create(CreateFileRequest( *amsc_data ))
         if amsc_type == "mlmodel":
@@ -40,6 +49,9 @@ def convert(cfg):
     for dataset_entry in dataset_list:
         amsc_type = dataset_entry["metadata"]["AmSC.Type"]
         amsc_data = field_convert(file_entry)
+
+        amsc_data["domain"] = domain
+
         if amsc_type == "scientificWork":
             created = Containers.create(CreateContainerRequest( *amsc_data ))
         if amsc_type == "artifactCollection":
