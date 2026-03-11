@@ -1,10 +1,12 @@
 from metacat.webapi import MetaCatClient
 import metadata.sdk.entities
+from metadata.sdk import configure as openmeta_configure
 from metadata.generated.schema.api.data.createFile import CreateFileRequest
 from metadata.generated.schema.api.data.createTable import CreateTableRequest
 from metadata.generated.schema.api.data.createMlModel import CreateMlModelRequest
 from metadata.generated.schema.api.data.createContainer import CreateContainerRequest
 import conversion_dicts import meta2open_dict
+
 
 def field_convert(entry):
     res = {}
@@ -23,7 +25,10 @@ def convert(cfg):
     dq = cf.get("general", "dataset_query")
     mcu = cf.get("metacat", "url")`
     mcuser = cf.get("metacat", "user")`
+
     mcc = MetaCatClient(mcu)
+    openmeta_configure( **dict(cp.items('openmetadata')))
+
     mcc.login_token(cf.get("general", mcuser)
     domain = ",".split(cf.get("openmeta", "add2domains"))
     
