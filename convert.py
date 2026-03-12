@@ -1,6 +1,7 @@
 from metacat.webapi import MetaCatClient
 import conversion_dicts import meta2amsc_dict
 import requests
+from version.py import __version
 
 class AmSCClient:
     def __init__(self, cf):
@@ -19,7 +20,10 @@ class AmSCClient:
 
 def field_convert(entry):
     res = {}
-    extra = {}
+    extra = {
+       "converter": "meta_cat2amsc",
+       "converter_version": __version,
+    }
     for k in entry:
         if k in meta2amsc_dict:
              res[meta2amsc_dict[k]] = entry[k]
