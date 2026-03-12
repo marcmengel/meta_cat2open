@@ -1,23 +1,5 @@
 
 
-amsctype2mctype_dict = {
-   "scientificWork": "dataset",
-   "artifact_collection": "dataset"
-   "artifact": "file",
-   "mlmodel": "file",
-   "table": "file",
-   "reference": "file",
-}
-
-amsctype2omtype_dict = {
-   "scientificWork": "Collection",
-   "artifact_collection": "Collection"
-   "artifact": "File",
-   "mlmodel": "ml_model",
-   "table": "Table",
-   "reference": "file",
-}
-
 meta2open_dict = {
  "id": "fqn",
  "name": "name",

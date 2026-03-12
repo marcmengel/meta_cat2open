@@ -5,15 +5,21 @@ import requests
 
 def field_convert(entry):
     res = {}
+    extra = {}
     for k in entry:
         if k in meta2open_dict:
              res[meta2open_dict[k]] = entry[k]
+        else:
+             extra[k] = entry[k]
     for k in entry["metadata"]:
         if k in meta2open_dict:
              res[meta2open_dict[k]] = entry["metadata"][k]
+        else:
+             extra[k] = entry[k]
     # special conversion cases:
     if "ParentFQN" in res:
         res["ParentFQN"] = [ x["name"] for x in res["ParentFQN"] ]
+    res["extra"] = extra
 
 def post_create(s, cf, type, entity_dict)
     amsc_url = cf.get("general","amsc_url") 
@@ -50,6 +56,7 @@ def convert(cfg):
         amsc_data["domain"] = domain
 
         if not amsc_data["fqn"]:
+            # not previously migrated
             res_data = post_create(s, cf, amsc_data)
             mcc.update_dataset(
                 namespace=d_entry["namespace"],
@@ -57,6 +64,7 @@ def convert(cfg):
                 metadata={"AmSC.common.fqn",res_data["fqn"]}
             )
         else:
+            # previously migrated: update
             res_data = put_update(s, cf, amsc_data)
         
 
@@ -69,7 +77,7 @@ def convert(cfg):
         amsc_data["domain"] = domain
 
         if not amsc_data["fqn"]:
-            # not migrated yet
+            # not previously migrated
             res_data = post_create(s, cf, amsc_data)
             mcc.update_file(
                 namespace=d_entry["namespace"],
@@ -77,5 +85,6 @@ def convert(cfg):
                 metadata={"AmSC.common.fqn",res_data["fqn"]}
             )
         else:
+            # previously migrated
             res_data = put_update(s, cf, amsc_data)
 
