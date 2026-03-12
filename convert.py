@@ -1,5 +1,5 @@
 from metacat.webapi import MetaCatClient
-import conversion_dicts import meta2open_dict
+import conversion_dicts import meta2amsc_dict
 import requests
 
 class AmSCClient:
@@ -21,13 +21,13 @@ def field_convert(entry):
     res = {}
     extra = {}
     for k in entry:
-        if k in meta2open_dict:
-             res[meta2open_dict[k]] = entry[k]
+        if k in meta2amsc_dict:
+             res[meta2amsc_dict[k]] = entry[k]
         else:
              extra[k] = entry[k]
     for k in entry["metadata"]:
-        if k in meta2open_dict:
-             res[meta2open_dict[k]] = entry["metadata"][k]
+        if k in meta2amsc_dict:
+             res[meta2amsc_dict[k]] = entry["metadata"][k]
         else:
              extra[k] = entry[k]
     # special conversion cases:

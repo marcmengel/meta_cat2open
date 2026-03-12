@@ -1,6 +1,6 @@
 
 
-meta2open_dict = {
+meta2amsc_dict = {
  "id": "fqn",
  "name": "name",
  "owner": "owner",
@@ -39,4 +39,4 @@ meta2open_dict = {
  "AmSC.reference.target_URI", "target_URI",
 }
 
-open2meta_dict = { v: k for k,v in meta2open_dict.items() }
+amsc2meta_dict = { v: k for k,v in meta2amsc_dict.items() }
