@@ -25,6 +25,7 @@ class fqncache:
 class AmSCClient:
     def __init__(self, cf, fqncache):
         self.amsc_url = cf.get("general","amsc_url") 
+        self.catalog_name = cf.get("general","catalog_name") 
         self.sess = requests.Session()
         self.sess.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
         self.fqncache = fqncache
@@ -39,9 +40,9 @@ class AmSCClient:
         return resp.json()
 
     def post_create(self, entity_dict):
-        url = f"{self.amsc_url}/catalog/{entity_dict['type']}"
+        url = f"{self.amsc_url}/catalog/{self.catalog_name}/{entity_dict['type']}"
         print(f"posting {json.dumps(entity_dict, indent=4)} to {url}")
-        resp = self.sess.post(url , entity_dict)
+        resp = self.sess.post(url , json=entity_dict)
         if resp.status_code != 200:
              raise RuntimeError(f"got status {resp.status_code} for POST catalog entry: {resp.text}")
         return resp.json()
@@ -49,7 +50,7 @@ class AmSCClient:
     def put_update(self, entity_dict):
         url = f"{self.amsc_url}/catalog/{entity_dict['fqn']}"
         print(f"posting {json.dumps(entity_dict, indent=4)} to {url}")
-        resp = self.sess.put(url, entity_dict)
+        resp = self.sess.put(url, json=entity_dict)
         if resp.status_code != 200:
              raise RuntimeError(f"got status {resp.status_code} for PUT catalog entry: {resp.text}")
         return resp.json()
@@ -65,6 +66,8 @@ def field_convert(entry, fc):
         if k in meta2amsc_dict:
              if entry[k]:
                  res[meta2amsc_dict[k]] = entry[k]
+             else:
+                 res[meta2amsc_dict[k]] = None
         else:
              if k not in ("metadata",) and entry[k]:
                  extra[f"MetaCat.{k}"] = entry[k]
@@ -73,6 +76,8 @@ def field_convert(entry, fc):
         if k in meta2amsc_dict:
              if entry["metadata"][k]:
                  res[meta2amsc_dict[k]] = entry["metadata"][k]
+             else:
+                 res[meta2amsc_dict[k]] = None
         else:
              if k not in ("metadata",) and entry["metadata"][k]:
                  extra[k] = entry["metadata"][k]
@@ -80,6 +85,10 @@ def field_convert(entry, fc):
     # special conversion cases:
     if "ParentFQN" in res:
         res["ParentFQN"] = [ fc.lookup_fqn(x["namespace"], x["name"]) for x in res["ParentFQN"] ]
+
+    if "location" not in res:
+        res["location"] = "http://www.fnal.gov/"
+
     res["extra"] = extra
     return res
 
