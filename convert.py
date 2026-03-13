@@ -6,22 +6,28 @@ import json
 import requests
 import urllib
 
+class fqncache:
+    def __init__(self, mcc):
+        self.fqnmap = {}
+        self.mcc = mcc
+
+    def register_fqn(self, name, namespace, fqn):
+        did = f"{namespace}:{name}"
+        fqnmap[did] = fqn
+
+    def lookup_fqn(self, name, namespace):
+        if not(did in self.fqnmap):
+            md = self.mcc.get_dataset(did)
+            if md and "AmSC.common.fqn" in md["metadata"]:
+                self.fqnmap[did] = md["metadata"]["AmSC.common.fqn"]
+        return self.fqnmap.giet(did, None)
+
 class AmSCClient:
-    def __init__(self, cf):
+    def __init__(self, cf, fqncache):
         self.amsc_url = cf.get("general","amsc_url") 
         self.sess = requests.Session()
         self.sess.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
-        self.fqnmap = {}
-
-    def lookup_fqn(self, namespace, name):
-        did = f"{namespace}:{name}"
-        if not(did in self.fqnmap):
-            res = self.query(f"type=scientificWork and name={name} and extra['MetaCat.namespace']={namespace}")
-            if res:
-                self.fqnmap[did] = res[0]["fqn"]
-            else:
-                return "unknown"
-        return self.fqnmap[did]:
+        self.fqncache = fqncache
 
     def query(self, querystring, limit=0, offset=0):
         url = f"{self.amsc_url}/search/catalog?q={urllib.quote_plust(querystring)}"
@@ -36,20 +42,20 @@ class AmSCClient:
         url = f"{self.amsc_url}/catalog/{entity_dict['type']}"
         print(f"posting {json.dumps(entity_dict, indent=4)} to {url}")
         resp = self.sess.post(url , entity_dict)
-        if resp.status != 200:
-             raise RuntimeError(f"got status {resp.status} for POST catalog entry")
+        if resp.status_code != 200:
+             raise RuntimeError(f"got status {resp.status_code} for POST catalog entry: {resp.text}")
         return resp.json()
 
     def put_update(self, entity_dict):
         url = f"{self.amsc_url}/catalog/{entity_dict['fqn']}"
         print(f"posting {json.dumps(entity_dict, indent=4)} to {url}")
         resp = self.sess.put(url, entity_dict)
-        if resp.status != 200:
-             raise RuntimeError(f"got status {resp.status} for POST catalog entry")
+        if resp.status_code != 200:
+             raise RuntimeError(f"got status {resp.status_code} for PUT catalog entry: {resp.text}")
         return resp.json()
 
 
-def field_convert(entry):
+def field_convert(entry, fc):
     res = {}
     extra = {
        "converter": "meta_cat2amsc",
@@ -73,7 +79,7 @@ def field_convert(entry):
 
     # special conversion cases:
     if "ParentFQN" in res:
-        res["ParentFQN"] = [ x["name"] for x in res["ParentFQN"] ]
+        res["ParentFQN"] = [ fc.lookup_fqn(x["namespace"], x["name"]) for x in res["ParentFQN"] ]
     res["extra"] = extra
     return res
 
@@ -92,14 +98,15 @@ def convert(cf):
         os.system(tunnel)
 
     mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
-    amscc = AmSCClient(cf)
+    fc = fqncache(mcc)
+    amscc = AmSCClient(cf, fc)
 
     #mcc.login_token(cf.get("general", mcuser))
     
     dataset_list = mcc.query(dq, with_metadata=True, with_provenance=True)
 
     for d_entry in dataset_list:
-        amsc_data = field_convert(d_entry)
+        amsc_data = field_convert(d_entry, fc)
 
         if not amsc_data.get("fqn",None):
             # not previously migrated
@@ -125,7 +132,7 @@ def convert(cf):
     for file_info in file_list:
 
         file_entry = mcc.get_file(name = file_info["name"], namespace = file_info["namespace"], with_datasets=True)
-        amsc_data = field_convert(file_entry)
+        amsc_data = field_convert(file_entry, fc)
 
         if not amsc_data.get("fqn",None):
             # not previously migrated
