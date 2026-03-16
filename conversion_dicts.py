@@ -4,7 +4,7 @@ meta2amsc_dict = {
  "name": "name",
  "owner": "owner",
  "size": "size",
- "datasets": "parent_fQN",
+ "datasets": "parent_fqn",
  "updated_by": "updated_by",
  "updated_timestamp": "updated_at",
  "AmSC.common.description": "description",

@@ -13,14 +13,15 @@ class fqncache:
 
     def register_fqn(self, name, namespace, fqn):
         did = f"{namespace}:{name}"
-        fqnmap[did] = fqn
+        self.fqnmap[did] = fqn
 
     def lookup_fqn(self, name, namespace):
+        did = f"{namespace}:{name}"
         if not(did in self.fqnmap):
             md = self.mcc.get_dataset(did)
             if md and "AmSC.common.fqn" in md["metadata"]:
                 self.fqnmap[did] = md["metadata"]["AmSC.common.fqn"]
-        return self.fqnmap.giet(did, None)
+        return self.fqnmap.get(did, None)
 
 class AmSCClient:
     def __init__(self, cf, fqncache):
@@ -83,8 +84,8 @@ def field_convert(entry, fc):
                  extra[k] = entry["metadata"][k]
 
     # special conversion cases:
-    if "ParentFQN" in res:
-        res["ParentFQN"] = [ fc.lookup_fqn(x["namespace"], x["name"]) for x in res["ParentFQN"] ]
+    if "parent_fqn" in res:
+        res["parent_fqn"] = ",".join([ fc.lookup_fqn(x["namespace"], x["name"]) for x in res["parent_fqn"] ])
 
     if "location" not in res:
         res["location"] = "http://www.fnal.gov/"
@@ -112,9 +113,11 @@ def convert(cf):
 
     #mcc.login_token(cf.get("general", mcuser))
     
-    dataset_list = mcc.query(dq, with_metadata=True, with_provenance=True)
+    print("querying: {dq}")
+    dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
 
     for d_entry in dataset_list:
+        print("{d_entry=}")
         amsc_data = field_convert(d_entry, fc)
 
         if not amsc_data.get("fqn",None):
@@ -122,7 +125,7 @@ def convert(cf):
             res_data = amscc.post_create(amsc_data)
 
             # remember fqn, and update in metacat
-            amsc_cc.fqnmap[f"{d_entry['namespace']}:{d_entry['name']}"] = res_data.get("fqn",None)
+            fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
 
             mcc.update_dataset(
                 namespace=d_entry["namespace"],
@@ -134,7 +137,7 @@ def convert(cf):
             res_data = amscc.put_update(amsc_data)
 
             # remember fqn
-            amsc_cc.fqnmap[f"{d_entry['namespace']}:{d_entry['name']}"] = res_data.get("fqn",None)
+            fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
         
 
     file_list = mcc.query(fq)
@@ -143,15 +146,17 @@ def convert(cf):
         file_entry = mcc.get_file(name = file_info["name"], namespace = file_info["namespace"], with_datasets=True)
         amsc_data = field_convert(file_entry, fc)
 
+        print("{file_info=}")
+
         if not amsc_data.get("fqn",None):
             # not previously migrated
             print(f"I would post {json.dumps(amsc_data,indent=4)}")
-            #res_data = amscc.post_create(amsc_data)
-            #mcc.update_file(
-            #    namespace=d_entry["namespace"],
-            #    name=d_entry["name"],
-            #    metadata={"AmSC.common.fqn",res_data["fqn"]}
-            #)
+            res_data = amscc.post_create(amsc_data)
+            mcc.update_file( 
+                namespace=file_info["namespace"],
+                name=file_info["name"],
+                metadata={"AmSC.common.fqn": res_data["fqn"]}
+            )
         else:
             # previously migrated
             res_data = amscc.put_update(amsc_data)
