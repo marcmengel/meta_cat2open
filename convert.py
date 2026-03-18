@@ -5,6 +5,8 @@ import os
 import json
 import requests
 import urllib
+import logging
+logger = logging.getLogger(__name__)
 
 class fqncache:
     def __init__(self, mcc):

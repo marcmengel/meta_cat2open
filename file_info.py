@@ -8,13 +8,16 @@ import sys
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+import logging
+logger = logging.getLogger(__name__)
+
 class InfoGetter:
     def __init__(self):
         self.s = requests.Session()
         self.token_header = {
              "Authorization": f"Bearer {self.get_bearer_token()}",
          }
-        #print(f"{self.s.headers=}")
+        self.file_checksum_list = []
 #
     def get_bearer_token(self):
         token = os.environ.get("BEARER_TOKEN")
@@ -24,15 +27,18 @@ class InfoGetter:
                 uid = os.environ.get("ID", str(os.geteuid()))
                 token_dir = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
                 token_file = token_dir + "/" + "bt_u" + uid
+        logger.debug(f"reading token file: {token_file}")
         token = open(token_file, "r").read().strip()
         return token
 
     def get_files( self, basedir, do_checksums = False ):
-        #print(f"get_files: {basedir=}")
+        logger.debug(f"get_files: {basedir=}")
+
         req = requests.Request('PROPFIND', basedir, headers=self.token_header)
+        #req = requests.Request('PROPFIND', basedir)
         resp = self.s.send(req.prepare(), verify=False )
 
-        #print(f"{resp.status_code=} {resp.text=}")
+        logger.debug(f"{resp.status_code=} {resp.text=}")
 
         file_list = []
         curname = None
@@ -62,32 +68,26 @@ class InfoGetter:
         file_list = file_list[1:]
 
 
-        if do_checksums:
-            spos = basedir.find("/", 9)
-            apibase = f"{basedir[0:spos]}/api/v1/namespace{basedir[spos:]}"
-            apibase = apibase.replace(":2880/",":3880/")
+        spos = basedir.find("/", 9)
+        apibase = f"{basedir[0:spos]}/api/v1/namespace{basedir[spos:]}"
+        apibase = apibase.replace(":2880/",":3880/")
 
-            file_checksum_list = []
-            for filename, size in file_list:
-                url=f"{apibase}/{filename}?checksum=true"
-                #print(f"{url=}")
-                resp = self.s.get(url, headers=self.token_header, verify=False)
-                #print(f"{resp.status_code=} {resp.text=}")
-                if resp.status_code == 200:
-                    data = resp.json()
-                    csvalue = data["checksums"][0]["value"]
-                    cstype = data["checksums"][0]["type"].lower()
-                    checksums = f'{{ "{cstype}": "{csvalue}" }}'
-                else:
-                    checksums = "{}"
-                file_checksum_list.append( (filename, size, checksums))
+        for filename, size in file_list:
+            url=f"{apibase}/{filename}?checksum=true"
+            logger.debug(f"{url=}")
+            resp = self.s.get(url, headers=self.token_header, verify=False)
+            logger.debug(f"{resp.status_code=} {resp.text=}")
+            if resp.status_code == 200:
+                data = resp.json()
+                csvalue = data["checksums"][0]["value"]
+                cstype = data["checksums"][0]["type"].lower()
+                checksums = f'{{ "{cstype}": "{csvalue}" }}'
+            else:
+                checksums = "{}"
+            self.file_checksum_list.append( (filename, size, checksums, basedir))
 
-            return file_checksum_list
-
-        return file_list
-
-ig = InfoGetter()
-fl = ig.get_files(sys.argv[1], do_checksums=True)
+    def get_file_list(self):
+        return self.file_checksum_list
 
 
 def get_suffix(fname):
@@ -118,32 +118,51 @@ def get_mimetype(suffix):
          mimetype = f"application/{suffix}"
      else:
          mimetype = f"application/X-{suffix}"
+     return mimetype
  
+def main():
+    level = logging.INFO
+    if len(sys.argv) == 1 or sys.argv[1] == "-h":
+        print("file_info.py -- make metadata upload file from dcache directories")
+        print("usage: python file_info.py [-h] [-d]  directory_url1 url2 ... > out.json")
+        print("  options:")
+        print("  -h: print this help message")
+        print("  -d: enable debug logging")
+        exit(1)
 
-sep="["
-for finfo in fl:
-    gz, suffix = get_suffix(finfo[0])
-    mimetype = get_mimetype(suffix)
-        
-    print(f"""
-{sep}
-{{
-    "name": "{finfo[0]}",
-    "namespace": "amsc",
-    "size": {finfo[1]},
-    "checksums": {finfo[2]},
-    "metadata": {{
-        "AmSC.common.description": "Description of file {finfo[0]}",
-        "AmSC.common.display_name": "{finfo[0]}",
-        "AmSC.common.fqn": "fnal-amsc-storage.fnal-amsc-data-catalog.migration_test_1.testfile1",
-        "AmSC.common.license": "GPL",
-        "AmSC.common.persistent_identifier": "16de1858-1e4b-11f1-8f62-fc4dd4d6e7f4@bel-kwinith.fnal.gov",
-        "AmSC.common.tags": "demo,test",
-        "AmSC.common.type": "artifact",
-        "AmSC.common.version": "v0.1",
-        "AmSC.artifact.format": "{mimetype}"
-    }}
-}}""", end="")
-    sep=","
+    if sys.argv[1] == "-d":
+        level = logging.DEBUG
+        sys.argv = sys.argv[1:]
+    logging.basicConfig(level=level)
 
-print("\n]")
+    ig = InfoGetter()
+    for basedir in sys.argv[1:]:
+        ig.get_files(basedir.strip("/"), do_checksums=True)
+
+    sep="["
+    for finfo in ig.get_file_list():
+        gz, suffix = get_suffix(finfo[0])
+        mimetype = get_mimetype(suffix)
+            
+        print(f"""{sep}
+    {{
+        "name": "{finfo[0]}",
+        "namespace": "amsc",
+        "size": {finfo[1]},
+        "checksums": {finfo[2]},
+        "metadata": {{
+            "AmSC.common.description": "Description of file {finfo[0]} in {finfo[3]}",
+            "AmSC.common.display_name": "{finfo[0]}",
+            "AmSC.common.location": "{finfo[3]}/{finfo[0]}",
+            "AmSC.common.tags": "",
+            "AmSC.common.version": "",
+            "AmSC.artifact.format": "{mimetype}"
+        }}
+    }}""", end="")
+
+        sep=","
+
+    print("\n]")
+
+if __name__ == "__main__":
+    main()
