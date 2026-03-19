@@ -31,7 +31,7 @@ class InfoGetter:
         token = open(token_file, "r").read().strip()
         return token
 
-    def get_files( self, basedir, do_checksums = False ):
+    def get_files( self, basedir):
         logger.debug(f"get_files: {basedir=}")
         headers = self.token_header.copy()
         headers["Depth"] = "1"
@@ -142,7 +142,7 @@ def main():
 
     ig = InfoGetter()
     for basedir in sys.argv[1:]:
-        ig.get_files(basedir.strip("/"), do_checksums=True)
+        ig.get_files(basedir.strip("/"))
 
     sep="["
     for finfo in ig.get_file_list():
