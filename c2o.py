@@ -11,12 +11,16 @@ def main():
     p.add_argument("-d", help="Debugging on", default=False, action='store_true')
 
     args = p.parse_args()
+    if args.d:
+        logger.setLevel(logging.DEBUG)
+
     config = configparser.ConfigParser()
     config.read(args.c)
+    if config.get("general","debug",fallback=False):
+        logger.setLevel(logging.DEBUG)
+
     convert(config)
 
-    if args.d or config.get_boolean("general","debug",fallback=False):
-        logger.setLevel(logging.DEBUG)
 
 
 if __name__ == '__main__':

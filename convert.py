@@ -23,7 +23,9 @@ class fqncache:
             md = self.mcc.get_dataset(did)
             if md and "AmSC.common.fqn" in md["metadata"]:
                 self.fqnmap[did] = md["metadata"]["AmSC.common.fqn"]
-        return self.fqnmap.get(did, None)
+        if not  self.fqnmap.get(did, ""):
+            logger.warning(f"Error: Unable to find fqn for: {did}")
+        return self.fqnmap.get(did, "")
 
 class AmSCClient:
     def __init__(self, cf, fqncache):
@@ -46,8 +48,12 @@ class AmSCClient:
         url = f"{self.amsc_url}/catalog/{self.catalog_name}/{entity_dict['type']}"
         print(f"posting {json.dumps(entity_dict, indent=4)} to {url}")
         resp = self.sess.post(url , json=entity_dict)
-        if resp.status_code != 200:
-             raise RuntimeError(f"got status {resp.status_code} for POST catalog entry: {resp.text}")
+        if resp.status_code != 200: 
+         
+             if resp.text.find("already exists") > 0:
+                 logger.info(f"Exists already: {entity_dict['name']}") 
+             else:        
+                 raise RuntimeError(f"got status {resp.status_code} for POST catalog entry: {resp.text}")
         return resp.json()
 
     def put_update(self, entity_dict):
@@ -86,8 +92,11 @@ def field_convert(entry, fc):
                  extra[k] = entry["metadata"][k]
 
     # special conversion cases:
-    if "parent_fqn" in res:
-        res["parent_fqn"] = ",".join([ fc.lookup_fqn(x["namespace"], x["name"]) for x in res["parent_fqn"] ])
+    if "parent_fqn" in res and res["parent_fqn"]:
+        try:
+            res["parent_fqn"] = ",".join([ fc.lookup_fqn(x["namespace"], x["name"]) for x in res["parent_fqn"] ])
+        except:
+            print(f"unable to convert parent_fqn: {repr(res['parent_fqn'])}!")
 
     if "location" not in res:
         res["location"] = "http://www.fnal.gov/"
@@ -97,8 +106,6 @@ def field_convert(entry, fc):
 
 def convert(cf):
     print("entering convert")
-    fq = cf.get("general", "file_query")
-    dq = cf.get("general", "dataset_query")
     mcsu = cf.get("metacat", "server_url")
     mcasu = cf.get("metacat", "auth_server_url")
     #mcuser = cf.get("metacat", "user")
@@ -114,52 +121,58 @@ def convert(cf):
     amscc = AmSCClient(cf, fc)
 
     #mcc.login_token(cf.get("general", mcuser))
-    
-    print("querying: {dq}")
-    dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
 
-    for d_entry in dataset_list:
-        print("{d_entry=}")
-        amsc_data = field_convert(d_entry, fc)
+    queries_list = cf.get("general", "query_list", fallback="general").split(" ")
+    print(f"{queries_list=}")
+    for qsect in queries_list:
 
-        if not amsc_data.get("fqn",None):
-            # not previously migrated
-            res_data = amscc.post_create(amsc_data)
+        fq = cf.get(qsect, "file_query")
+        dq = cf.get(qsect, "dataset_query")
 
-            # remember fqn, and update in metacat
-            fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
+        print(f"querying: {dq}")
+        dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
 
-            mcc.update_dataset(
-                namespace=d_entry["namespace"],
-                name=d_entry["name"],
-                metadata={"AmSC.common.fqn",res_data.get("fqn", "")}
-            )
-        else:
-            # previously migrated: update
-            res_data = amscc.put_update(amsc_data)
+        for d_entry in dataset_list:
+            print("{d_entry=}")
+            amsc_data = field_convert(d_entry, fc)
 
-            # remember fqn
-            fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
-        
+            if not amsc_data.get("fqn",None):
+                # not previously migrated
+                res_data = amscc.post_create(amsc_data)
 
-    file_list = mcc.query(fq)
-    for file_info in file_list:
+                # remember fqn, and update in metacat
+                fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
 
-        file_entry = mcc.get_file(name = file_info["name"], namespace = file_info["namespace"], with_datasets=True)
-        amsc_data = field_convert(file_entry, fc)
+                mcc.update_dataset(
+                    dataset=f'{d_entry["namespace"]}:{d_entry["name"]}',
+                    metadata={"AmSC.common.fqn":res_data.get("fqn", "")},
+                )
+            else:
+                # previously migrated: update
+                res_data = amscc.put_update(amsc_data)
 
-        print("{file_info=}")
+                # remember fqn
+                fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
+            
 
-        if not amsc_data.get("fqn",None):
-            # not previously migrated
-            print(f"I would post {json.dumps(amsc_data,indent=4)}")
-            res_data = amscc.post_create(amsc_data)
-            mcc.update_file( 
-                namespace=file_info["namespace"],
-                name=file_info["name"],
-                metadata={"AmSC.common.fqn": res_data["fqn"]}
-            )
-        else:
-            # previously migrated
-            res_data = amscc.put_update(amsc_data)
+        file_list = mcc.query(fq)
+        for file_info in file_list:
+
+            file_entry = mcc.get_file(name = file_info["name"], namespace = file_info["namespace"], with_datasets=True)
+            amsc_data = field_convert(file_entry, fc)
+
+            print("{file_info=}")
+
+            if not amsc_data.get("fqn",None):
+                # not previously migrated
+                print(f"I would post {json.dumps(amsc_data,indent=4)}")
+                res_data = amscc.post_create(amsc_data)
+                mcc.update_file( 
+                    namespace=file_info["namespace"],
+                    name=file_info["name"],
+                    metadata={"AmSC.common.fqn": res_data["fqn"]}
+                )
+            else:
+                # previously migrated
+                res_data = amscc.put_update(amsc_data)
 
