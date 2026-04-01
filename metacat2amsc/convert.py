@@ -138,6 +138,10 @@ def convert(cf):
 
             if not amsc_data.get("fqn",None):
                 # not previously migrated
+                if "fqn" in amsc_data:
+                    del amsc_data["fqn"]
+                if "updated_by" in amsc_data:
+                    del amsc_data["updated_by"]
                 res_data = amscc.post_create(amsc_data)
 
                 # remember fqn, and update in metacat
@@ -166,6 +170,10 @@ def convert(cf):
             if not amsc_data.get("fqn",None):
                 # not previously migrated
                 print(f"I would post {json.dumps(amsc_data,indent=4)}")
+                if "fqn" in amsc_data:
+                    del amsc_data["fqn"]
+                if "updated_by" in amsc_data:
+                    del amsc_data["updated_by"]
                 res_data = amscc.post_create(amsc_data)
                 mcc.update_file( 
                     namespace=file_info["namespace"],
