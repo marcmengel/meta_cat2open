@@ -4,7 +4,7 @@ from version import __version
 import os
 import json
 import requests
-import urllib
+import urllib.parse
 import logging
 logger = logging.getLogger(__name__)
 
@@ -32,11 +32,12 @@ class AmSCClient:
         self.amsc_url = cf.get("general","amsc_url") 
         self.catalog_name = cf.get("general","catalog_name") 
         self.sess = requests.Session()
-        self.sess.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
+        #self.sess.headers.update( {"Authorization": cf.get("openmetadata","jwt_token")})
+        self.sess.headers.update( {"Authorization": f'Bearer {cf.get("openmetadata","jwt_token")}'})
         self.fqncache = fqncache
 
     def query(self, querystring, limit=0, offset=0):
-        url = f"{self.amsc_url}/search/catalog?q={urllib.quote_plust(querystring)}"
+        url = f"{self.amsc_url}/search/catalog?q={urllib.parse.quote(querystring)}"
         if limit:
             url += f"&{limit=}"
         if offset:
@@ -63,6 +64,7 @@ class AmSCClient:
         if resp.status_code != 200:
              raise RuntimeError(f"got status {resp.status_code} for PUT catalog entry: {resp.text}")
         return resp.json()
+
 
 
 def field_convert(entry, fc):
