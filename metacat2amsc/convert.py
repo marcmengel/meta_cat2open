@@ -103,7 +103,8 @@ def field_convert(entry, fc):
     if "location" not in res:
         res["location"] = "http://www.fnal.gov/"
 
-    res["extra"] = extra
+    # extra isn't actually supported yet...
+    # res["extra"] = extra
     return res
 
 def convert(cf):
@@ -135,7 +136,7 @@ def convert(cf):
         dataset_list = list(mcc.query(dq, with_metadata=True, with_provenance=True))
 
         for d_entry in dataset_list:
-            print("{d_entry=}")
+            print(f"{d_entry=}")
             amsc_data = field_convert(d_entry, fc)
 
             if not amsc_data.get("fqn",None):
@@ -144,6 +145,9 @@ def convert(cf):
                     del amsc_data["fqn"]
                 if "updated_by" in amsc_data:
                     del amsc_data["updated_by"]
+                if "updated_at" in amsc_data:
+                    del amsc_data["updated_at"]
+                del amsc_data["parent_fqn"]
                 res_data = amscc.post_create(amsc_data)
 
                 # remember fqn, and update in metacat
@@ -167,7 +171,10 @@ def convert(cf):
             file_entry = mcc.get_file(name = file_info["name"], namespace = file_info["namespace"], with_datasets=True)
             amsc_data = field_convert(file_entry, fc)
 
-            print("{file_info=}")
+            print(f"{file_info=}")
+
+            if not amsc_data.get("parent_fqn", None):
+                print(f"Skipping file {file_info['name']}, parent dataset not migrated")
 
             if not amsc_data.get("fqn",None):
                 # not previously migrated
