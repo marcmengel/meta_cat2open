@@ -22,9 +22,8 @@ setup(
       "Intended Audience :: Developers",
       "License :: OSI Approved :: Apache 2.0 License",
     ],
-    package_dir={"": "metacat2amsc"}, 
-    packages=["."],
+    packages=["metacat2amsc"],
     python_requires=">=3.6",
     install_requires=["metacat-client"],
-    scripts=["metacat2amsc/c2o.py"]
+    scripts=["metacat2amsc/migrator"]
 )

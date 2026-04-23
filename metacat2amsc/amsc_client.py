@@ -56,4 +56,13 @@ class AmSCClient:
              #raise RuntimeError(f"got status {resp.status_code} for PUT catalog entry: {resp.text}")
         return resp.json()
 
+    def delete_item(self, entity_dict):
+        url = f"{self.amsc_url}/catalog/{entity_dict['fqn']}"
+        logger.debug(f"deleting {json.dumps(entity_dict, indent=4)} to {url}")
+        logger.debug(f"..with headers {self.sess.headers}")
+        resp = self.sess.delete(url, json=entity_dict)
+        if resp.status_code != 200:
+             logger.error(f"Error: got status {resp.status_code} for PUT catalog entry: {resp.text}")
+             #raise RuntimeError(f"got status {resp.status_code} for PUT catalog entry: {resp.text}")
+        return resp.json()
 

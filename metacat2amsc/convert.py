@@ -1,7 +1,7 @@
 from metacat.webapi import MetaCatClient
-from conversion_dicts import meta2amsc_dict
-from version import __version
-from amsc_client import AmSCClient
+from .conversion_dicts import meta2amsc_dict
+from .version import __version
+from .amsc_client import AmSCClient
 import os
 import json
 import requests
@@ -118,6 +118,13 @@ def convert(cf):
             print(f"{d_entry=}")
             amsc_data = field_convert(d_entry, fc)
 
+            if 'fn.locations' in d_entry and d_entry['fn.locations']:
+               amsc_data['description'] += "\nAvailable via:"
+               for loc in d_entry['fn.locations']:
+                   amsc_data['description'] =  f"{amsc_data['description']}\n* {loc}"
+            if 'fn.tape_stage_in' in d_entry and d_entry['fn.tape_stage_in']:
+               amsc_data['description'] = f"{amsc_data['description']}\nRequest Stage-in from tape here:\n{d_entry['fn.tape_stage_in']}"
+
             if amsc_data.get("fqn") and not amscc.get(amsc_data["fqn"]):
                 print("we think we migrated it, but its gone...")
                 del amsc_data["fqn"]
@@ -145,7 +152,12 @@ def convert(cf):
                     )
             else:
                 # previously migrated: update
-                res_data = amscc.put_update(amsc_data)
+                duflag = fc.getboolean("general","update_by_delete_add", fallback=False)
+                if duflag:
+                    res_data = amscc.delete_catalog(amsc_data)
+                    res_data = amscc.post_create(amsc_data)
+                else:
+                    res_data = amscc.put_update(amsc_data)
 
                 # remember fqn
                 fc.register_fqn(d_entry['namespace'], d_entry['name'], res_data.get("fqn",None))
