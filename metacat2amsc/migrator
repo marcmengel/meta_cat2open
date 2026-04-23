@@ -11,7 +11,8 @@ def main():
     p.add_argument("-c", help="Config file", default="migrator.ini")
     p.add_argument("-d", help="Debugging on", default=False, action='store_true')
     p.add_argument("-q", help="Query instead" )
-    p.add_argument("-g", help="Get catalog fqn instead" )
+    p.add_argument("-g", help="GET catalog fqn instead" )
+    p.add_argument("-D", help="DELETE catalog fqn instead" )
 
     args = p.parse_args()
     if args.d:
@@ -23,14 +24,19 @@ def main():
         logger.setLevel(logging.DEBUG)
 
     if args.q:
-        c = AmSCClient(config, None)
+        c = AmSCClient(config)
         res = c.query(args.q)
         print(f"Query Result: {repr(res)}")
         exit(0)
     if args.g:
-        c = AmSCClient(config, None)
+        c = AmSCClient(config)
         res = c.get(args.g)
         print(f"Get Result: {repr(res)}")
+        exit(0)
+    if args.D:
+        c = AmSCClient(config)
+        res = c.delete_item(args.D)
+        print(f"DELETE Result: {repr(res)}")
         exit(0)
     
     convert(config)
