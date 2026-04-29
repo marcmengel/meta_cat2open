@@ -152,9 +152,9 @@ def convert(cf):
                     )
             else:
                 # previously migrated: update
-                duflag = fc.getboolean("general","update_by_delete_add", fallback=False)
+                duflag = cf.getboolean("general","update_by_delete_add", fallback=False)
                 if duflag:
-                    res_data = amscc.delete_catalog(amsc_data)
+                    res_data = amscc.delete_item(amsc_data)
                     res_data = amscc.post_create(amsc_data)
                 else:
                     res_data = amscc.put_update(amsc_data)
@@ -195,5 +195,9 @@ def convert(cf):
                     )
             else:
                 # previously migrated
-                res_data = amscc.put_update(amsc_data)
+                if duflag:
+                    res_data = amscc.delete_item(amsc_data)
+                    res_data = amscc.post_create(amsc_data)
+                else:
+                    res_data = amscc.put_update(amsc_data)
 

@@ -57,7 +57,7 @@ class AmSCClient:
         return resp.json()
 
     def delete_item(self, entity):
-        if isinstance(dict,entity):
+        if isinstance(entity, dict):
             url = f"{self.amsc_url}/catalog/{entity['fqn']}"
             logger.debug(f"deleting {json.dumps(entity_dict, indent=4)} to {url}")
         else:
