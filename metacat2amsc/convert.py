@@ -118,7 +118,8 @@ def convert(cf):
 
         # update time on timestamp file, save start time
         open(timestamp_file, mode="w").close()
-        start_timestamp = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.gmtime(time.time()))
+
+    start_timestamp = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.gmtime(time.time()))
 
     mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
 
