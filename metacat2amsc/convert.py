@@ -118,7 +118,6 @@ def convert(cf):
 
         # update time on timestamp file, save start time
         open(timestamp_file, mode="w").close()
-
     start_timestamp = time.strftime("%Y-%m-%dT%H:%M:%S%z", time.gmtime(time.time()))
 
     mcc = MetaCatClient(server_url=mcsu, auth_server_url=mcasu)
@@ -154,7 +153,7 @@ def convert(cf):
         if fqt:
             fq = fqt.replace('{namespace}', namespace)
         else:
-            fq = cf.get(namespace, "file_query" )
+            fq = cf.get(namespace, "file_query", fallback="")
         
         if dqt:
             dq = dqt.replace('{namespace}', namespace)
@@ -184,6 +183,7 @@ def convert(cf):
 
             if amsc_data.get("fqn") and not amscc.get(amsc_data["fqn"]):
                 logging.debug("we think we migrated it, but its gone...")
+                saved_fqn = amsc_data["fqn"]
                 del amsc_data["fqn"]
 
             if not amsc_data.get("fqn", None):
@@ -197,6 +197,13 @@ def convert(cf):
                 if "parent_fqn" in amsc_data and not amsc_data["parent_fqn"]:
                     del amsc_data["parent_fqn"]
                 res_data = amscc.post_create(amsc_data)
+
+                logging.debug(f"got {res_data=} ")
+
+                if "error" in res_data and res_data["error"] == "exists":
+                    if saved_fqn:
+                        amsc_data["fqn"] = saved_fqn
+                    amscc.put_update(amsc_data)
 
                 if "fqn" in res_data:
                     # remember fqn, and update in metacat
@@ -223,8 +230,17 @@ def convert(cf):
 
             migrated_datasets.append(f'{d_entry["namespace"]}:{d_entry["name"]}')
 
+        time.sleep(1)  # avoid rate limit?
+
+        filecount = 0
+
         file_list = mcc.query(fq)
         for file_info in file_list:
+ 
+            filecount += 1
+
+            if filecount%20 == 19:
+                time.sleep(1) # avoid rate limit?
 
             file_entry = mcc.get_file(
                 name=file_info["name"],
@@ -243,6 +259,7 @@ def convert(cf):
 
             if amsc_data.get("fqn") and not amscc.get(amsc_data["fqn"]):
                 logging.debug("we think we migrated it, but its gone...")
+                saved_fqn = amsc_data["fqn"]
                 del amsc_data["fqn"]
 
             if not amsc_data.get("fqn", None):
@@ -253,6 +270,14 @@ def convert(cf):
                 if "updated_by" in amsc_data:
                     del amsc_data["updated_by"]
                 res_data = amscc.post_create(amsc_data)
+
+                logging.debug(f"got {res_data=} ")
+
+                if "error" in res_data and res_data["error"] == "exists":
+                    if saved_fqn:
+                        amsc_data["fqn"] = saved_fqn
+                    amscc.put_update(amsc_data)
+
                 if "fqn" in res_data:
                     mcc.update_file(
                         namespace=file_info["namespace"],
@@ -283,7 +308,7 @@ def convert(cf):
         if fqt:
             fq = fqt.replace('{namespace}', namespace)
         else:
-            fq = cf.get(qsect, "file_query", "")
+            fq = cf.get(namespace, "file_query", fallback="")
         
         if dqt:
             dq = dqt.replace('{namespace}', namespace)
@@ -309,4 +334,4 @@ def convert(cf):
             did = f"{d_entry['namespace']}:{d_entry['name']}" 
             if not did in migrated_files:
                 # the type should already be this, this just fixes the update_timestamp
-                mcc.update_file_metadata( {"AmSC.common.type", "artifact"}, dids=[did])
+                mcc.update_file_meta( {"AmSC.common.type", "artifact"}, dids=[did])
